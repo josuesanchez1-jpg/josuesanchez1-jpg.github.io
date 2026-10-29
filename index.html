@@ -67,10 +67,21 @@
         statusDiv.className = '';
         statusDiv.innerText = 'Solicitando acceso a la cámara...';
         
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'environment' }, 
-          audio: false 
-        });
+        let stream;
+        try {
+          // 1. Intentar preferentemente con la cámara trasera
+          stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: { ideal: 'environment' } }, 
+            audio: false 
+          });
+        } catch (e) {
+          // 2. Si falla (ej. en PC sin cámara trasera), abrir cualquier cámara disponible
+          console.warn("No se pudo usar la cámara trasera, intentando cámara predeterminada...", e);
+          stream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: false 
+          });
+        }
         
         video.srcObject = stream;
         video.style.display = 'block';
@@ -79,7 +90,7 @@
         statusDiv.innerText = '';
       } catch (err) {
         statusDiv.className = 'error';
-        statusDiv.innerText = 'Error al acceder a la cámara: ' + err.message;
+        statusDiv.innerText = 'Error al acceder a la cámara: ' + err.message + ' (Verifica permisos)';
       }
     }
 
@@ -133,7 +144,6 @@
       };
 
       try {
-        // Se usa 'text/plain' para evitar la petición preflight CORS (OPTIONS) que Apps Script bloquea
         const response = await fetch(WEB_APP_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
