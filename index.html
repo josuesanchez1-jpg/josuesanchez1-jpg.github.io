@@ -71,7 +71,12 @@
         try {
           // 1. Intentar preferentemente con la cámara trasera
           stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: { ideal: 'environment' } }, 
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 800, max: 800 },
+              height: { ideal: 600, max: 600 },
+              frameRate: { ideal: 10, max: 10 }
+            }, 
             audio: false 
           });
         } catch (e) {
@@ -94,13 +99,22 @@
       }
     }
 
+    function procesarImagen(source, width, height) {
+      const scale = Math.min(800 / width, 600 / height, 1);
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+
+      base64Foto = canvas.toDataURL('image/jpeg', 0.8);
+      preview.src = base64Foto;
+      preview.style.display = 'block';
+      btnGuardar.style.display = 'block';
+    }
+
     function capturarFoto() {
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const context = canvas.getContext('2d');
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      base64Foto = canvas.toDataURL('image/jpeg', 0.85);
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
+      procesarImagen(video, width, height);
       
       if (video.srcObject) {
         video.srcObject.getTracks().forEach(track => track.stop());
@@ -109,8 +123,6 @@
       video.style.display = 'none';
       btnTomarFoto.style.display = 'none';
       
-      preview.src = base64Foto;
-      preview.style.display = 'block';
       btnGuardar.style.display = 'block';
     }
 
@@ -120,13 +132,14 @@
 
       const reader = new FileReader();
       reader.onload = function(e) {
-        base64Foto = e.target.result;
-        preview.src = base64Foto;
-        preview.style.display = 'block';
-        video.style.display = 'none';
-        btnActivarCamara.style.display = 'inline-block';
-        btnTomarFoto.style.display = 'none';
-        btnGuardar.style.display = 'block';
+        const image = new Image();
+        image.onload = function() {
+          procesarImagen(image, image.naturalWidth, image.naturalHeight);
+          video.style.display = 'none';
+          btnActivarCamara.style.display = 'inline-block';
+          btnTomarFoto.style.display = 'none';
+        };
+        image.src = e.target.result;
       };
       reader.readAsDataURL(file);
     }
