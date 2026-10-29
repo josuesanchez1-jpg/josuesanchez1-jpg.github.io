@@ -68,6 +68,8 @@
     const btnActivarCamara = document.getElementById('btnActivarCamara');
     const btnTomarFoto = document.getElementById('btnTomarFoto');
     const btnGuardar = document.getElementById('btnGuardar');
+    const MAX_IMAGE_WIDTH = 320;
+    const MAX_IMAGE_HEIGHT = 240;
     let cameraStream = null;
 
     function detenerCamara() {
@@ -112,10 +114,11 @@
         cameraStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 800 },
-            height: { ideal: 600 },
-            frameRate: { ideal: 10 }
+            width: { ideal: MAX_IMAGE_WIDTH, max: MAX_IMAGE_WIDTH },
+            height: { ideal: MAX_IMAGE_HEIGHT, max: MAX_IMAGE_HEIGHT },
+            frameRate: { ideal: 15, max: 15 }
           },
+          // No se solicita micrófono ni se ejecuta procesamiento de audio.
           audio: false
         });
 
@@ -133,7 +136,7 @@
     }
 
     function procesarImagen(source, width, height) {
-      const scale = Math.min(800 / width, 600 / height, 1);
+      const scale = Math.min(MAX_IMAGE_WIDTH / width, MAX_IMAGE_HEIGHT / height, 1);
       canvas.width = Math.round(width * scale);
       canvas.height = Math.round(height * scale);
       canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
