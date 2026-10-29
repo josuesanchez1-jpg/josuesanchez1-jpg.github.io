@@ -19,6 +19,13 @@
     .success { color: #2e7d32; }
     .error { color: #c62828; }
     input[type="file"] { display: none; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 15px; }
+    .actions .btn { flex: 1 1 145px; min-height: 48px; margin: 0; }
+    @media (max-width: 480px) {
+      body { padding: 12px; min-height: 100vh; }
+      .card { padding: 18px; }
+      video, canvas, img { max-height: 50vh; }
+    }
   </style>
 </head>
 <body>
@@ -32,7 +39,7 @@
     <canvas id="canvas" style="display:none;"></canvas>
     <img id="preview" style="display:none;" alt="Vista previa">
 
-    <div style="margin-top: 15px;">
+    <div class="actions">
       <button id="btnActivarCamara" class="btn" onclick="iniciarCamara()">Abrir Cámara</button>
       <button id="btnTomarFoto" class="btn btn-success" onclick="capturarFoto()" style="display:none;">Capturar</button>
 
@@ -61,41 +68,67 @@
     const btnActivarCamara = document.getElementById('btnActivarCamara');
     const btnTomarFoto = document.getElementById('btnTomarFoto');
     const btnGuardar = document.getElementById('btnGuardar');
+    let cameraStream = null;
+
+    function detenerCamara() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+
+      video.pause();
+      video.srcObject = null;
+      video.style.display = 'none';
+      btnActivarCamara.style.display = 'inline-block';
+      btnTomarFoto.style.display = 'none';
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && cameraStream) {
+        detenerCamara();
+        statusDiv.className = '';
+        statusDiv.innerText = 'Cámara detenida al salir de la página. Pulsa Abrir Cámara para reanudar.';
+      }
+    });
+    window.addEventListener('pagehide', detenerCamara);
 
     async function iniciarCamara() {
+      if (!window.isSecureContext) {
+        statusDiv.className = 'error';
+        statusDiv.innerText = 'La cámara requiere HTTPS. Abre la página con una dirección https:// o usa Galería / Sistema.';
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        statusDiv.className = 'error';
+        statusDiv.innerText = 'Este navegador no permite abrir la cámara desde la página. Usa Galería / Sistema.';
+        return;
+      }
+
       try {
         statusDiv.className = '';
         statusDiv.innerText = 'Solicitando acceso a la cámara...';
-        
-        let stream;
-        try {
-          // 1. Intentar preferentemente con la cámara trasera
-          stream = await navigator.mediaDevices.getUserMedia({ 
-            video: {
-              facingMode: { ideal: 'environment' },
-              width: { ideal: 800, max: 800 },
-              height: { ideal: 600, max: 600 },
-              frameRate: { ideal: 10, max: 10 }
-            }, 
-            audio: false 
-          });
-        } catch (e) {
-          // 2. Si falla (ej. en PC sin cámara trasera), abrir cualquier cámara disponible
-          console.warn("No se pudo usar la cámara trasera, intentando cámara predeterminada...", e);
-          stream = await navigator.mediaDevices.getUserMedia({ 
-            video: true, 
-            audio: false 
-          });
-        }
-        
-        video.srcObject = stream;
+
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 800 },
+            height: { ideal: 600 },
+            frameRate: { ideal: 10 }
+          },
+          audio: false
+        });
+
+        video.srcObject = cameraStream;
         video.style.display = 'block';
+        await video.play();
         btnActivarCamara.style.display = 'none';
         btnTomarFoto.style.display = 'inline-block';
         statusDiv.innerText = '';
       } catch (err) {
+        detenerCamara();
         statusDiv.className = 'error';
-        statusDiv.innerText = 'Error al acceder a la cámara: ' + err.message + ' (Verifica permisos)';
+        statusDiv.innerText = 'No se pudo iniciar la cámara (' + err.name + '). Revisa los permisos o usa Galería / Sistema.';
       }
     }
 
@@ -116,14 +149,7 @@
       const height = video.videoHeight || 480;
       procesarImagen(video, width, height);
       
-      if (video.srcObject) {
-        video.srcObject.getTracks().forEach(track => track.stop());
-      }
-      
-      video.style.display = 'none';
-      btnTomarFoto.style.display = 'none';
-      
-      btnGuardar.style.display = 'block';
+      detenerCamara();
     }
 
     function cargarDesdeArchivo(event) {
