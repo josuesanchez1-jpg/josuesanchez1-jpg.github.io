@@ -1,110 +1,161 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Captura de Cámara</title>
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; background-color: #f4f4f9; margin: 0; padding: 20px; }
-        .camera-container { position: relative; width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        video { width: 100%; height: auto; display: block; }
-        .controls { margin-top: 20px; display: flex; gap: 10px; width: 100%; max-width: 400px; }
-        button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        #btnCapturar { background: #007bff; color: white; }
-        #btnCapturar:hover { background: #0056b3; }
-        #btnCapturar:disabled { background: #ccc; cursor: not-allowed; }
-        #status { margin-top: 15px; font-size: 0.9em; color: #333; word-break: break-all; text-align: center; }
-        canvas { display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Captura de Cámara a Google Drive</title>
+  <style>
+    * { box-sizing: border-box; font-family: Arial, sans-serif; }
+    body { background-color: #f4f6f9; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 480px; text-align: center; }
+    h2 { margin-top: 0; color: #333; }
+    .btn { background-color: #1a73e8; color: white; border: none; padding: 12px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; margin: 6px 2px; transition: background 0.2s; }
+    .btn:hover { background-color: #1557b0; }
+    .btn-success { background-color: #34a853; }
+    .btn-success:hover { background-color: #2d8e47; }
+    .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    video, canvas, img { width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; margin-top: 15px; background: #000; }
+    #status { margin-top: 15px; font-size: 14px; font-weight: 500; word-break: break-all; }
+    .success { color: #2e7d32; }
+    .error { color: #c62828; }
+    input[type="file"] { display: none; }
+  </style>
 </head>
 <body>
 
-    <h2>Capturar Documento/Foto</h2>
-    
-    <div class="camera-container">
-        <video id="video" autoplay playsinline></video>
+  <div class="card">
+    <h2>Captura de Foto</h2>
+    <p>Abre la cámara o sube una imagen para guardarla en Google Drive.</p>
+
+    <!-- Visor de cámara -->
+    <video id="video" autoplay playsinline style="display:none;"></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <img id="preview" style="display:none;" alt="Vista previa">
+
+    <div style="margin-top: 15px;">
+      <button id="btnActivarCamara" class="btn" onclick="iniciarCamara()">Abrir Cámara</button>
+      <button id="btnTomarFoto" class="btn btn-success" onclick="capturarFoto()" style="display:none;">Capturar</button>
+
+      <label for="inputNativo" class="btn btn-success" style="display:inline-block;">
+        Galería / Sistema
+      </label>
+      <input type="file" id="inputNativo" accept="image/*" capture="environment" onchange="cargarDesdeArchivo(event)">
     </div>
-    
-    <div class="controls">
-        <button id="btnCapturar">Tomar Foto y Subir</button>
-    </div>
-    
-    <div id="status">Esperando cámara...</div>
-    <canvas id="canvas"></canvas>
 
-    <script>
-        // REEMPLAZA ESTO CON LA URL DE TU WEB APP DE APPS SCRIPT
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyRM8eLrbgWtdJimxWqVFaThV9-9jSRocnm6K9SGiDRAiPyY9EyA0v0dgQn5sfmM7NVEg/exec';
+    <button id="btnGuardar" class="btn btn-success" onclick="enviarAGoogleDrive()" style="display:none; width: 100%; margin-top: 15px;">
+      Guardar en Drive
+    </button>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    // ⚠️ REEMPLAZA ESTA URL CON LA URL DE TU APLICACIÓN WEB DE APPS SCRIPT
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyRM8eLrbgWtdJimxWqVFaThV9-9jSRocnm6K9SGiDRAiPyY9EyA0v0dgQn5sfmM7NVEg/exec";
+
+    let base64Foto = "";
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const preview = document.getElementById('preview');
+    const statusDiv = document.getElementById('status');
+    const btnActivarCamara = document.getElementById('btnActivarCamara');
+    const btnTomarFoto = document.getElementById('btnTomarFoto');
+    const btnGuardar = document.getElementById('btnGuardar');
+
+    async function iniciarCamara() {
+      try {
+        statusDiv.className = '';
+        statusDiv.innerText = 'Solicitando acceso a la cámara...';
         
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const btnCapturar = document.getElementById('btnCapturar');
-        const statusDiv = document.getElementById('status');
-        
-        // Iniciar la cámara (preferiblemente la trasera para logística/documentos)
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then(stream => {
-                video.srcObject = stream;
-                statusDiv.innerText = "Cámara lista.";
-            })
-            .catch(err => {
-                console.error("Error al acceder a la cámara:", err);
-                statusDiv.innerText = "Error: Permisos de cámara denegados o dispositivo no encontrado.";
-                btnCapturar.disabled = true;
-            });
-
-        btnCapturar.addEventListener('click', async () => {
-            btnCapturar.disabled = true;
-            statusDiv.innerText = "Capturando...";
-            
-            // Ajustar el canvas al tamaño del video
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const context = canvas.getContext('2d');
-            
-            // Dibujar el frame actual en el canvas
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Obtener el Base64 (comprimido como JPEG al 80% para optimizar subida)
-            const base64Image = canvas.toDataURL('image/jpeg', 0.8);
-            
-            statusDiv.innerText = "Subiendo a Google Drive...";
-
-            try {
-                // Se envía como text/plain para evadir el preflight OPTIONS de CORS
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'text/plain;charset=utf-8',
-                    },
-                    body: JSON.stringify({ image: base64Image })
-                });
-
-                const responseText = await response.text();
-                let result;
-
-                try {
-                    result = JSON.parse(responseText);
-                } catch {
-                    throw new Error(`Apps Script no devolvió JSON: ${responseText.slice(0, 200)}`);
-                }
-
-                if (!response.ok) {
-                    throw new Error(`Respuesta HTTP ${response.status}: ${result.message || response.statusText}`);
-                }
-                
-                if(result.status === 'success') {
-                    statusDiv.innerHTML = `✅ Éxito! <a href="${result.fileUrl}" target="_blank">Ver Archivo</a>`;
-                } else {
-                    statusDiv.innerText = "❌ Error en el servidor: " + result.message;
-                }
-            } catch (error) {
-                console.error("Error de fetch:", error);
-                statusDiv.innerText = `❌ Error al subir: ${error.message}`;
-            } finally {
-                btnCapturar.disabled = false;
-            }
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' }, 
+          audio: false 
         });
-    </script>
+        
+        video.srcObject = stream;
+        video.style.display = 'block';
+        btnActivarCamara.style.display = 'none';
+        btnTomarFoto.style.display = 'inline-block';
+        statusDiv.innerText = '';
+      } catch (err) {
+        statusDiv.className = 'error';
+        statusDiv.innerText = 'Error al acceder a la cámara: ' + err.message;
+      }
+    }
+
+    function capturarFoto() {
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      base64Foto = canvas.toDataURL('image/jpeg', 0.85);
+      
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+      }
+      
+      video.style.display = 'none';
+      btnTomarFoto.style.display = 'none';
+      
+      preview.src = base64Foto;
+      preview.style.display = 'block';
+      btnGuardar.style.display = 'block';
+    }
+
+    function cargarDesdeArchivo(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        base64Foto = e.target.result;
+        preview.src = base64Foto;
+        preview.style.display = 'block';
+        video.style.display = 'none';
+        btnActivarCamara.style.display = 'inline-block';
+        btnTomarFoto.style.display = 'none';
+        btnGuardar.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function enviarAGoogleDrive() {
+      if (!base64Foto) return;
+
+      btnGuardar.disabled = true;
+      statusDiv.className = '';
+      statusDiv.innerText = 'Subiendo a Google Drive...';
+
+      const payload = {
+        base64: base64Foto,
+        nombre: 'Foto_GitHub_' + new Date().getTime() + '.jpg'
+      };
+
+      try {
+        // Se usa 'text/plain' para evitar la petición preflight CORS (OPTIONS) que Apps Script bloquea
+        const response = await fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+
+        const res = await response.json();
+        btnGuardar.disabled = false;
+
+        if (res.exito) {
+          statusDiv.className = 'success';
+          statusDiv.innerHTML = '¡Foto guardada!<br><a href="' + res.url + '" target="_blank">Ver en Google Drive</a>';
+        } else {
+          statusDiv.className = 'error';
+          statusDiv.innerText = 'Error: ' + res.error;
+        }
+      } catch (err) {
+        btnGuardar.disabled = false;
+        statusDiv.className = 'error';
+        statusDiv.innerText = 'Error de conexión: ' + err.message;
+      }
+    }
+  </script>
 </body>
 </html>
