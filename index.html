@@ -80,7 +80,18 @@
                     body: JSON.stringify({ image: base64Image })
                 });
 
-                const result = await response.json();
+                const responseText = await response.text();
+                let result;
+
+                try {
+                    result = JSON.parse(responseText);
+                } catch {
+                    throw new Error(`Apps Script no devolvió JSON: ${responseText.slice(0, 200)}`);
+                }
+
+                if (!response.ok) {
+                    throw new Error(`Respuesta HTTP ${response.status}: ${result.message || response.statusText}`);
+                }
                 
                 if(result.status === 'success') {
                     statusDiv.innerHTML = `✅ Éxito! <a href="${result.fileUrl}" target="_blank">Ver Archivo</a>`;
@@ -89,7 +100,7 @@
                 }
             } catch (error) {
                 console.error("Error de fetch:", error);
-                statusDiv.innerText = "❌ Error de conexión al subir la imagen.";
+                statusDiv.innerText = `❌ Error al subir: ${error.message}`;
             } finally {
                 btnCapturar.disabled = false;
             }
