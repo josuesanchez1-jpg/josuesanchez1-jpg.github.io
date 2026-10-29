@@ -111,16 +111,27 @@
         statusDiv.className = '';
         statusDiv.innerText = 'Solicitando acceso a la cámara...';
 
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: MAX_IMAGE_WIDTH, max: MAX_IMAGE_WIDTH },
-            height: { ideal: MAX_IMAGE_HEIGHT, max: MAX_IMAGE_HEIGHT },
-            frameRate: { ideal: 15, max: 15 }
-          },
-          // No se solicita micrófono ni se ejecuta procesamiento de audio.
-          audio: false
-        });
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: MAX_IMAGE_WIDTH, max: MAX_IMAGE_WIDTH },
+              height: { ideal: MAX_IMAGE_HEIGHT, max: MAX_IMAGE_HEIGHT },
+              frameRate: { ideal: 15, max: 15 }
+            },
+            // No se solicita micrófono ni se ejecuta procesamiento de audio.
+            audio: false
+          });
+        } catch (cameraError) {
+          if (cameraError.name !== 'OverconstrainedError') throw cameraError;
+
+          // Si el navegador rechaza las restricciones, deja que elija el flujo de cámara predeterminado.
+          statusDiv.innerText = 'Probando el flujo de cámara predeterminado...';
+          cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+        }
 
         video.srcObject = cameraStream;
         video.style.display = 'block';
